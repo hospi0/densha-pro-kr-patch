@@ -26,7 +26,13 @@ def make():
     for f in glob.glob(os.path.join(OUT, '*.bs')):
         os.remove(f)
     res = T.build_all(pac) + D.build_all(pac) + PK.build_all(pac)
+    import secmap as SM
+    ty, sz = SM.load()
     for o, n, old, new in res:
+        # ★굽기 상한 = 게임이 «읽는» 크기(자리 크기 아님) — 25차 사진 크래시: 사진은 16섹터(32768 B)만 읽는데 21섹터 자리까지 채움.
+        #   사진(0x9B96800~) = 원본 최대 32768 → 32768. 제목·거리 = 섹터 지도 크기 필드(21섹터 = 43008, 자리 45056 보다 작음).
+        cap = 32768 if o >= 0x9B96800 else sz[SM.entry_of(o)[0]] * 2048
+        n = min(n, cap)
         b = bs.encode(new, 640, 480, n, 'v3')
         assert len(b) <= n and b[2:4] == b'\x00\x38', (hex(o), len(b), n)
         d = bs.decode(b, 640, 480)
