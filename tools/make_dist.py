@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
-r"""전차로 GO! 프로페셔널 사양 배포 묶음 — dist/DenshaDeGoPro_KR_<VER>/ : BIN xdelta + xdelta.exe + readme.txt(CP949) + 한글패치_적용.bat (2026-10-19)
+r"""전차로 GO! 프로페셔널 사양 배포 묶음 — dist/DenshaDeGoPro_KR_<VER>/ : BIN xdelta + 한글 BIOS xdelta + xdelta.exe + readme.txt(CP949) + 한글패치_적용.bat (2026-10-19)
+  한글 BIOS = 토발2 dist/SCPH1001K.xdelta(SCPH1001.BIN 924E392E… → SCPH1001K.BIN F2EA2C82…, 에어가이츠 배포본과 같은 파일) — 넣을 때 적용 검산.
   검증: 원본 BIN → xdelta 적용 → md5 = 빌드 결과 md5. CUE 는 원본 그대로 씀(트랙 1개, 크기 같음).
   python tools/make_dist.py   (먼저 python tools/mdec_kr.py make · python tools/build.py)
 """
@@ -16,6 +17,9 @@ ROMNAME = 'Densha de Go! Professional Shiyou (Japan)'
 SRC = r'C:\claude\roms\ps\Densha de Go Professional Shiyou (Japan)\Densha de Go! Professional Shiyou (Japan).bin'
 BUILD = os.path.join(ROOT, 'work', 'build', ROMNAME + '.bin')
 NAME = 'DenshaDeGoPro_KR_' + VER
+BIOS_X = r'C:\claude\project\tobal2-kr-patch\dist\SCPH1001K.xdelta'
+BIOS_SRC = r'C:\claude\utils\pcsx2\bios\SCPH1001.BIN'
+BIOS_O, BIOS_K = '924E392ED05558FFDB115408C263DCCF', 'F2EA2C82F6A8C56EEAC1C25BA60C9553'
 TITLE = '전차로 GO! 프로페셔널 사양 (PS1 일본판 SLPM-86378) 한글 패치 ' + VER
 
 
@@ -49,11 +53,19 @@ BODY = """
   (Delta Patcher 같은 xdelta3 GUI 도구로 적용해도 됩니다. 원본이 다르면 xdelta 가 적용을 거부합니다.)
 
 
-[ 한글 표시 ]
+[ 한글 BIOS (꼭 필요) ]
 
   - 게임 속 문장(평문)은 BIOS 한자 글꼴 자리를 쓰므로 "한글 BIOS" 가 필요합니다.
     일본 BIOS 로 실행하면 문장이 한자로 깨져 보입니다.
   - 그림 글자(메뉴·계기판·안내 말풍선·사진 설명 등)는 BIOS 와 상관없이 한글로 나옵니다.
+
+  한글 BIOS 만들기 (SCPH1001K.xdelta 동봉)
+    원본 SCPH1001.BIN  md5 {bo}
+    결과 SCPH1001K.BIN md5 {bk}
+
+    - SCPH1001.BIN 을 이 폴더에 넣고 한글패치_적용.bat 을 실행하면 SCPH1001K.BIN 도 같이 만들어집니다.
+    - 직접 적용: xdelta.exe -d -s "SCPH1001.BIN" "SCPH1001K.xdelta" "SCPH1001K.BIN"
+    - 에뮬레이터(DuckStation 등)의 BIOS 폴더에 넣고, 일본(NTSC-J) BIOS 로 SCPH1001K.BIN 을 고르세요.
 
 
 [ 바뀌는 것 ]
@@ -74,6 +86,12 @@ BODY = """
 BAT = r"""@echo off
 chcp 949 >nul
 set "XD=%~dp0xdelta.exe"
+if exist "%~dp0SCPH1001.BIN" (
+  echo   한글 BIOS 만드는 중...
+  "%XD%" -d -f -s "%~dp0SCPH1001.BIN" "%~dp0SCPH1001K.xdelta" "%~dp0SCPH1001K.BIN"
+  if errorlevel 1 echo   [오류] BIOS 패치 실패 - SCPH1001.BIN md5 를 readme 에서 확인하세요.
+  if not errorlevel 1 echo   완료: SCPH1001K.BIN
+)
 if not exist "%~dp0{bin}" (
   echo   [오류] 원본 BIN 파일을 이 폴더에 넣어 주세요 - readme 참고.
   pause & exit /b 1
@@ -105,8 +123,13 @@ def main():
     assert got == want, ('패치 적용 결과가 빌드와 다름', got, want)
     kbin = ROMNAME + ' [KR].bin'
     shutil.copy2(XDELTA, os.path.join(d, 'xdelta.exe'))
+    bx = os.path.join(d, 'SCPH1001K.xdelta'); shutil.copy2(BIOS_X, bx)
+    assert md5(BIOS_SRC) == BIOS_O
+    subprocess.run([XDELTA, '-d', '-f', '-s', BIOS_SRC, bx, chk], check=True)
+    got = md5(chk); os.remove(chk)
+    assert got == BIOS_K, ('BIOS 패치 결과 다름', got)
     readme = (TITLE + '\n' + '=' * 60 + '\n\n' + HEAD.format(rom=ROMNAME, o=o, d=want)
-              + BODY.format(bin=binf, patch=patch))
+              + BODY.format(bin=binf, patch=patch, bo=BIOS_O, bk=BIOS_K))
     open(os.path.join(d, 'readme.txt'), 'wb').write(readme.replace('\n', '\r\n').encode('cp949'))
     open(os.path.join(d, '한글패치_적용.bat'), 'wb').write(
         BAT.format(bin=binf, patch=patch, kbin=kbin).replace('\n', '\r\n').encode('cp949'))
